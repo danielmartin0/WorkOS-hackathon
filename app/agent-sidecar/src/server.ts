@@ -12,20 +12,19 @@ export function createServer() {
   app.use(express.json({ limit: "2mb" }));
 
   app.get("/health", (_req, res) => {
-    const modPath = path.join(workdir, "mod");
-    const modExists = fs.existsSync(modPath);
-    const modWritable = (() => {
-      if (!modExists) {
+    const workdirExists = fs.existsSync(workdir);
+    const workdirWritable = (() => {
+      if (!workdirExists) {
         return false;
       }
       try {
-        fs.accessSync(modPath, fs.constants.W_OK);
+        fs.accessSync(workdir, fs.constants.W_OK);
         return true;
       } catch {
         return false;
       }
     })();
-    res.json({ ok: true, workdir, modPath, modExists, modWritable });
+    res.json({ ok: true, workdir, workdirExists, workdirWritable });
   });
 
   app.post("/agent/query", async (req, res) => {

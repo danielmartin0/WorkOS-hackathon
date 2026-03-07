@@ -58,7 +58,12 @@ public final class OverlayViewModel: ObservableObject {
         Task {
             do {
                 let timestamp = Int(Date().timeIntervalSince1970)
-                let captureRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                let workspaceRoot = currentDir.lastPathComponent == "app"
+                    ? currentDir.deletingLastPathComponent()
+                    : currentDir
+                let captureRoot = workspaceRoot
+                    .appendingPathComponent("mod", isDirectory: true)
                     .appendingPathComponent("captures", isDirectory: true)
                 let fileURL = captureRoot
                     .appendingPathComponent("window-\(selectedWindowID)-\(timestamp).png")

@@ -14,11 +14,17 @@ export function resolveAppWorkdir(): string {
     path.resolve(cwd, "../.."),
   ];
 
-  // Prefer the first directory that actually contains /mod.
-  const withMod = candidates.find((candidate) =>
-    fs.existsSync(path.join(candidate, "mod"))
-  );
-  return path.resolve(withMod ?? path.resolve(cwd, ".."));
+  for (const candidate of candidates) {
+    const directMod = path.join(candidate, "mod");
+    if (fs.existsSync(directMod)) {
+      return path.resolve(directMod);
+    }
+    if (path.basename(candidate) === "mod" && fs.existsSync(candidate)) {
+      return path.resolve(candidate);
+    }
+  }
+
+  return path.resolve(path.join(cwd, "mod"));
 }
 
 export function ensurePathWithinWorkdir(workdir: string, candidate: string): string {

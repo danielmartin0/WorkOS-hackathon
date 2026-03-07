@@ -5,6 +5,7 @@ public final class SidecarManager {
     private var agentProcess: Process?
     private let appRoot: URL
     private let workspaceRoot: URL
+    private let modRoot: URL
 
     public init(appRoot: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)) {
         self.appRoot = appRoot
@@ -13,6 +14,7 @@ public final class SidecarManager {
         } else {
             self.workspaceRoot = appRoot
         }
+        self.modRoot = self.workspaceRoot.appendingPathComponent("mod")
     }
 
     public func startAll() {
@@ -45,7 +47,7 @@ public final class SidecarManager {
         }
 
         var env = ProcessInfo.processInfo.environment
-        env["AGENT_WORKDIR"] = workspaceRoot.path
+        env["AGENT_WORKDIR"] = modRoot.path
         env["DOTENV_CONFIG_PATH"] = appRoot.appendingPathComponent(".env").path
         process.environment = env
         process.standardOutput = FileHandle.standardOutput
