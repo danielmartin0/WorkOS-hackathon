@@ -7,7 +7,7 @@ const rcon = await Rcon.connect({
 })
 
 const response = await rcon.send(
-  '/silent-command rendering.draw_sprite({sprite = "file/image.png",render_layer = "object",surface = "nauvis",target = { x = 0, y = 10 }})',
+  '/silent-command remote.call("workos_hackathon", "draw_nauvis_sprite")',
 )
 console.log("Response:", response)
 
