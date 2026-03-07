@@ -15,9 +15,9 @@ private final class OverlayHostingView<Content: View>: NSHostingView<Content> {
 @MainActor
 public final class OverlayWindowController: NSWindowController {
     public init<Content: View>(rootView: Content) {
-        let screenFrame = NSScreen.main?.frame ?? CGRect(x: 120, y: 120, width: 1200, height: 800)
+        let panelFrame = CGRect(x: 120, y: 120, width: 460, height: 520)
         let window = OverlayWindow(
-            contentRect: screenFrame,
+            contentRect: panelFrame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false

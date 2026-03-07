@@ -8,14 +8,7 @@ public struct OverlayRootView: View {
     }
 
     public var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color.clear
-                .contentShape(Rectangle())
-                .allowsHitTesting(false)
-
-            panel
-        }
-        .allowsHitTesting(false)
+        panel
     }
 
     private var panel: some View {
