@@ -1,6 +1,6 @@
 ## Factorio mods
 
-The following information will help you develop Factorio mods in this repo.
+The following information will help you develop Factorio mods in this directory.
 
 ### Lua Coding Standards
 
