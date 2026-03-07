@@ -6,14 +6,9 @@ public final class OverlayWindow: NSWindow {
     public override var canBecomeMain: Bool { true }
 }
 
-private final class PassthroughHostingView<Content: View>: NSHostingView<Content> {
+private final class OverlayHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let result = super.hitTest(point)
-        return result === self ? nil : result
     }
 }
 
@@ -36,8 +31,9 @@ public final class OverlayWindowController: NSWindowController {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.ignoresMouseEvents = false
+        window.isMovableByWindowBackground = false
 
-        let hostingView = PassthroughHostingView(rootView: rootView)
+        let hostingView = OverlayHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
         window.contentView = hostingView

@@ -13,28 +13,35 @@ public struct OverlayRootView: View {
                 .contentShape(Rectangle())
                 .allowsHitTesting(false)
 
-            VStack(alignment: .leading, spacing: 10) {
-                header
-                windowPicker
-                controls
-                chat
-                if let warning = viewModel.permissionWarning {
-                    Text(warning)
-                        .font(.footnote)
-                        .foregroundStyle(.yellow)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Text(viewModel.statusLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(14)
-            .frame(width: 420)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .shadow(radius: 10)
-            .padding(20)
+            panel
         }
+        .allowsHitTesting(false)
+    }
+
+    private var panel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            windowPicker
+            controls
+            chat
+            if let warning = viewModel.permissionWarning {
+                Text(warning)
+                    .font(.footnote)
+                    .foregroundStyle(.yellow)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(viewModel.statusLine)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(width: 420)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .shadow(radius: 10)
+        .padding(20)
+        .allowsHitTesting(true)
     }
 
     private var header: some View {
@@ -45,6 +52,7 @@ public struct OverlayRootView: View {
             Button("Refresh") {
                 viewModel.refreshWindows()
             }
+            .buttonStyle(.bordered)
         }
     }
 
@@ -69,9 +77,11 @@ public struct OverlayRootView: View {
         VStack(spacing: 8) {
             HStack {
                 Button("Capture now") { viewModel.captureNow() }
+                    .buttonStyle(.borderedProminent)
                 Button(viewModel.periodicCaptureEnabled ? "Stop periodic" : "Start periodic") {
                     viewModel.togglePeriodicCapture()
                 }
+                .buttonStyle(.bordered)
             }
 
             HStack {
@@ -79,6 +89,7 @@ public struct OverlayRootView: View {
                 Button("Send") {
                     viewModel.sendPrompt()
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return)
             }
         }
