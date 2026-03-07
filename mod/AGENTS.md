@@ -11,6 +11,7 @@ The following information will help you develop Factorio mods in this directory.
 
 ### Factorio Modding Practices
 
+* We're using the Factorio 2.0 API. For example, you should use the 'storage' object instead of the 'global' object to store game data.
 * The Factorio API documentation is available at https://lua-api.factorio.com/latest/.
 * When adding entries for entities, recipes or other game objects to the locale file, you should usually avoid giving them descriptions.
 
