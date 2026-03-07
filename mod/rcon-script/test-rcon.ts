@@ -14,7 +14,7 @@ const rcon = await Rcon.connect({
 })
 
 // Send the very first command first, then execute passed CLI command
-await rcon.send('/silent-command game.print("Hello from Claude!")')
+await rcon.send('/silent-command game.print("Hello from AdaL!")')
 const response = await rcon.send(commandToRun)
 console.log("Response:", response)
 
