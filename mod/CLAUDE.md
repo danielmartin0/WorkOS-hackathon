@@ -16,6 +16,6 @@ The following information will help you develop Factorio mods in this directory.
 
 ## Environment
 
-* For examples, you can look at the code of existing mods inside `/Applications/factorio-modding.app`.
+* For examples, you can look at the code of existing mods inside `/Applications/factorio-modding.app`. In particular, the 'Portals mod' is at `/Applications/factorio-modding.app/Contents/mods/The-Portals-Mod`.
 * If I ask you to pull in a pre-existing external asset from our assets library, that is located in `/Users/danielmartin/Dev/Git-External/factorio_free_graphics_for_modders`.
 * If you want to look at base game Lua code, you can find it in `/Users/danielmartin/Dev/Git-External/factorio-data`.
