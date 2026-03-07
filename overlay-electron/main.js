@@ -31,7 +31,7 @@ app.whenReady().then(() => {
   win = new BrowserWindow({
     width: 340,
     height: 460,
-    x: width - 350,
+    x: 0,
     y: 0,
     frame: false,
     transparent: true,
@@ -82,7 +82,7 @@ ipcMain.handle('anchor', (_, pid) => {
     const [ow] = win.getSize()
     const padding = 12
     // CGWindowList coords are already logical points, origin top-left of primary display
-    const x = Math.round(target.x + target.w - ow - padding)
+    const x = Math.round(target.x + padding)
     const y = Math.round(target.y + padding)
     win.setPosition(x, y)
   }, 300)
