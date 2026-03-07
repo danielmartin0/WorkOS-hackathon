@@ -1,0 +1,18 @@
+-- data:extend({
+-- 	{
+-- 		type = "double-setting",
+-- 		name = "_Template-double-setting",
+-- 		setting_type = "startup",
+-- 		default_value = 1.0,
+-- 		minimum_value = 0.0,
+-- 		maximum_value = 100.0,
+-- 	},
+-- 	{
+-- 		type = "bool-setting",
+-- 		setting_type = "startup",
+-- 		name = "_Template-bool-setting",
+-- 		forced_value = false,
+-- 		default_value = false,
+-- 		hidden = true,
+-- 	},
+-- })
