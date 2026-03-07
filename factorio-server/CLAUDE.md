@@ -1,0 +1,1 @@
+This directory contains a script to set up a Factorio server that the user can connect to.
