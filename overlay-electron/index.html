@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    background: transparent;
+    color: #e0e0e0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
+    overflow: hidden;
+  }
+
+  /* ── collapsed tab ── */
+  #tab {
+    margin-top: 0;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 4px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: rgba(91,200,245,0.9);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    user-select: none;
+    -webkit-user-select: none;
+    text-transform: uppercase;
+  }
+  #tab:hover { background: rgba(0,0,0,0.7); }
+
+  /* ── panel ── */
+  #panel {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    flex: 1;
+    background: rgba(6, 6, 10, 0.52);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 4px;
+    transition: opacity 0.15s ease;
+  }
+
+  #panel.hidden {
+    display: none;
+  }
+
+  /* topbar */
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: rgba(0,0,0,0.2);
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+  #topbar > * { -webkit-app-region: no-drag; }
+
+  #session-select {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px;
+    color: #d0d0d0;
+    font-family: inherit;
+    font-size: 10px;
+    padding: 3px 6px;
+    outline: none;
+    cursor: pointer;
+  }
+  #session-select option { background: #111116; }
+
+  #refresh-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 5px;
+    border-radius: 4px;
+  }
+  #refresh-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+
+  #status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    flex-shrink: 0;
+  }
+  #status-dot.on { background: #4ade80; box-shadow: 0 0 4px #4ade80aa; }
+
+  /* anchor bar */
+  #anchorbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: rgba(0,0,0,0.15);
+    flex-shrink: 0;
+    -webkit-app-region: no-drag;
+  }
+  #anchor-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+    flex-shrink: 0;
+  }
+  #window-select {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px;
+    color: #d0d0d0;
+    font-family: inherit;
+    font-size: 10px;
+    padding: 2px 5px;
+    outline: none;
+  }
+  #window-select option { background: #111116; }
+  #anchor-refresh {
+    background: none; border: none;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer; font-size: 11px;
+    padding: 2px 4px; border-radius: 4px;
+  }
+  #anchor-refresh:hover { color: #fff; background: rgba(255,255,255,0.08); }
+  #anchor-btn {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 5px;
+    color: #d0d0d0;
+    font-family: inherit;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  #anchor-btn:hover { background: rgba(255,255,255,0.12); }
+  #anchor-btn.active { background: rgba(91,200,245,0.15); border-color: rgba(91,200,245,0.35); color: #5bc8f5; }
+
+  /* output */
+  #output {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+    font-size: 10.5px;
+    line-height: 1.55;
+    display: flex;
+    flex-direction: column;
+  }
+  #output::-webkit-scrollbar { width: 3px; }
+  #output::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+  .line { word-break: break-all; user-select: text; -webkit-user-select: text; white-space: pre-wrap; }
+  .line.err  { color: #f87171; }
+  .line.you  { color: #5bc8f5; }
+  .line.sys  { color: rgba(255,255,255,0.35); font-style: italic; }
+
+  /* input */
+  #inputbar {
+    display: flex;
+    gap: 6px;
+    padding: 7px 8px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    background: rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
+
+  #input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #e8e8e8;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 5px 8px;
+    outline: none;
+    -webkit-app-region: no-drag;
+    caret-color: #5bc8f5;
+  }
+  #input:focus { border-color: rgba(91,200,245,0.4); }
+  #input::placeholder { color: rgba(255,255,255,0.22); }
+
+  #send-btn {
+    background: rgba(91,200,245,0.15);
+    border: 1px solid rgba(91,200,245,0.3);
+    border-radius: 6px;
+    color: #5bc8f5;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 5px 12px;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    text-transform: uppercase;
+  }
+  #send-btn:hover { background: rgba(91,200,245,0.25); }
+  #send-btn:disabled { opacity: 0.3; cursor: default; }
+</style>
+</head>
+<body>
+
+<div id="tab">terminal ▾</div>
+
+<div id="panel">
+  <div id="topbar">
+    <select id="session-select"><option value="">no sessions</option></select>
+    <button id="refresh-btn">↺</button>
+    <div id="status-dot"></div>
+  </div>
+  <div id="anchorbar">
+    <span id="anchor-label">anchor</span>
+    <select id="window-select"><option value="">— pick window —</option></select>
+    <button id="anchor-refresh">↺</button>
+    <button id="anchor-btn">lock</button>
+  </div>
+  <div id="output"></div>
+  <div id="inputbar">
+    <input id="input" type="text" placeholder="send command..." autocomplete="off" spellcheck="false" />
+    <button id="send-btn" disabled>↑</button>
+  </div>
+</div>
+
+<script>
+  const tabEl        = document.getElementById('tab')
+  const panelEl      = document.getElementById('panel')
+  const selectEl     = document.getElementById('session-select')
+  const outputEl     = document.getElementById('output')
+  const inputEl      = document.getElementById('input')
+  const sendBtn      = document.getElementById('send-btn')
+  const refreshBtn   = document.getElementById('refresh-btn')
+  const statusDot    = document.getElementById('status-dot')
+  const windowSelect = document.getElementById('window-select')
+  const anchorRefresh= document.getElementById('anchor-refresh')
+  const anchorBtn    = document.getElementById('anchor-btn')
+
+  let sessions = []
+  let collapsed = false
+  let anchored = false
+  let currentSessionId = null
+  let sessionPollTimer = null
+  let windows = []
+  let windowPollTimer = null
+  let loadingWindows = false
+  const ANSI_ESCAPE_RE = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g
+
+  // ── toggle ───────────────────────────────────────────────
+  tabEl.addEventListener('click', () => {
+    collapsed = !collapsed
+    panelEl.classList.toggle('hidden', collapsed)
+    tabEl.textContent = collapsed ? 'terminal ▸' : 'terminal ▾'
+  })
+
+  // ── helpers ──────────────────────────────────────────────
+  function appendLine(text, cls) {
+    const clean = String(text || '').replace(ANSI_ESCAPE_RE, '')
+    clean.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').forEach(l => {
+      const div = document.createElement('div')
+      div.className = 'line' + (cls ? ' '+cls : '')
+      div.textContent = l.length ? l : ' '
+      outputEl.appendChild(div)
+      if (outputEl.children.length > 500)
+        outputEl.removeChild(outputEl.firstChild)
+    })
+    outputEl.scrollTop = outputEl.scrollHeight
+  }
+
+  function setStatus(on) {
+    statusDot.className = on ? 'on' : ''
+  }
+
+  // ── sessions ─────────────────────────────────────────────
+  async function loadSessions() {
+    const prevSelected = selectEl.value || currentSessionId || ''
+    sessions = await window.adal.listSessions()
+    selectEl.innerHTML = ''
+
+    if (!sessions.length) {
+      selectEl.innerHTML = '<option value="">no terminal sessions</option>'
+      setStatus(false)
+      currentSessionId = null
+      return
+    }
+
+    sessions.forEach(s => {
+      const o = document.createElement('option')
+      o.value = s.id
+      o.textContent = s.title
+      selectEl.appendChild(o)
+    })
+
+    const preferred = sessions.find(s => s.id === prevSelected)
+      || sessions.find(s => s.hasAdal)
+      || sessions[0]
+
+    selectEl.value = preferred.id
+
+    if (currentSessionId !== preferred.id) {
+      await attachSession(preferred)
+    } else {
+      setStatus(true)
+    }
+  }
+
+  async function attachSession(s) {
+    if (!s) return
+    const r = await window.adal.attach(s)
+    if (!r.ok) {
+      setStatus(false)
+      appendLine('attach error: ' + r.error, 'err')
+      return
+    }
+    currentSessionId = s.id
+    setStatus(true)
+    appendLine(`attached to ${s.title}`, 'sys')
+  }
+
+  selectEl.addEventListener('change', async () => {
+    const s = sessions.find(s => s.id === selectEl.value)
+    if (s) await attachSession(s)
+  })
+
+  refreshBtn.addEventListener('click', loadSessions)
+
+  // ── output ───────────────────────────────────────────────
+  window.adal.onOutput(({ text, isError }) => appendLine(text, isError ? 'err' : ''))
+
+  // ── send ─────────────────────────────────────────────────
+  inputEl.addEventListener('input', () => {
+    sendBtn.disabled = !inputEl.value.trim()
+  })
+
+  async function send() {
+    const text = inputEl.value.trim()
+    if (!text) return
+    inputEl.value = ''
+    sendBtn.disabled = true
+    appendLine('› ' + text, 'you')
+    const r = await window.adal.sendMessage(text)
+    if (!r.ok) appendLine('error: ' + r.error, 'err')
+  }
+
+  sendBtn.addEventListener('click', send)
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') send() })
+
+  // ── window anchor ─────────────────────────────────────────
+  async function loadWindows() {
+    if (loadingWindows) return
+    loadingWindows = true
+    try {
+      windows = await window.adal.listWindows()
+      const prev = windowSelect.value
+      const selectedWindow = windows.find(w => String(w.id) === prev)
+
+      windowSelect.innerHTML = '<option value="">— pick window —</option>'
+      windows.forEach(w => {
+        const o = document.createElement('option')
+        o.value = String(w.id)
+        const title = w.title ? ` — ${w.title}` : ''
+        o.textContent = `${w.owner}${title}`
+        windowSelect.appendChild(o)
+      })
+
+      if (selectedWindow) {
+        windowSelect.value = String(selectedWindow.id)
+      } else if (windows.length && !anchored) {
+        windowSelect.value = String(windows[0].id)
+      } else {
+        windowSelect.value = ''
+      }
+
+      if (anchored && !selectedWindow) {
+        await window.adal.unanchor()
+        anchored = false
+        anchorBtn.textContent = 'lock'
+        anchorBtn.classList.remove('active')
+      }
+    } finally {
+      loadingWindows = false
+    }
+  }
+
+  anchorRefresh.addEventListener('click', loadWindows)
+
+  anchorBtn.addEventListener('click', async () => {
+    if (anchored) {
+      await window.adal.unanchor()
+      anchored = false
+      anchorBtn.textContent = 'lock'
+      anchorBtn.classList.remove('active')
+    } else {
+      const selected = windows.find(w => String(w.id) === windowSelect.value)
+      if (!selected) return
+      await window.adal.anchor({ id: selected.id, pid: selected.pid })
+      anchored = true
+      anchorBtn.textContent = 'locked'
+      anchorBtn.classList.add('active')
+    }
+  })
+
+  loadWindows()
+  windowPollTimer = setInterval(loadWindows, 1000)
+  sessionPollTimer = setInterval(loadSessions, 1500)
+  window.addEventListener('beforeunload', () => {
+    if (windowPollTimer) clearInterval(windowPollTimer)
+    if (sessionPollTimer) clearInterval(sessionPollTimer)
+  })
+  loadSessions()
+</script>
+</body>
+</html>
