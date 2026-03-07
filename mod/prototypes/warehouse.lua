@@ -89,5 +89,3 @@ data:extend({
 		},
 	},
 })
-
-log(serpent.block(data.raw.container["aai-storehouse"].collision_box))
