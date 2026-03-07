@@ -15,7 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let window = controller.window {
             viewModel.attachOverlayWindow(window)
             controller.showWindow(nil)
-            NSApp.activate(ignoringOtherApps: true)
         }
 
         viewModel.bootstrap()
@@ -32,7 +31,7 @@ struct OverlayAppMain {
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
-        app.setActivationPolicy(.regular)
+        app.setActivationPolicy(.accessory)
         app.run()
     }
 }

@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 public final class OverlayLayoutController {
     private weak var window: NSWindow?
+    private var lastAppliedFrame: CGRect?
 
     public init() {}
 
@@ -33,6 +34,19 @@ public final class OverlayLayoutController {
             height: panelSize.height
         )
 
-        window.setFrame(panelFrame, display: true)
+        if shouldApply(panelFrame: panelFrame, current: window.frame) {
+            window.setFrame(panelFrame, display: true)
+            lastAppliedFrame = panelFrame
+        }
+    }
+
+    private func shouldApply(panelFrame: CGRect, current: CGRect) -> Bool {
+        let reference = lastAppliedFrame ?? current
+        let epsilon: CGFloat = 1.0
+        let delta = abs(panelFrame.origin.x - reference.origin.x)
+            + abs(panelFrame.origin.y - reference.origin.y)
+            + abs(panelFrame.width - reference.width)
+            + abs(panelFrame.height - reference.height)
+        return delta > epsilon
     }
 }

@@ -7,6 +7,7 @@ public final class GameWindowTracker: ObservableObject {
     @Published public var selectedWindowID: UInt32?
 
     private var trackingTimer: Timer?
+    private var lastTrackedBounds: CGRect?
 
     public init() {}
 
@@ -61,11 +62,16 @@ public final class GameWindowTracker: ObservableObject {
 
     public func startTracking(windowID: UInt32, frameDidChange: @escaping @MainActor (CGRect) -> Void) {
         selectedWindowID = windowID
+        lastTrackedBounds = nil
         trackingTimer?.invalidate()
-        trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+        trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
                 guard let bounds = self.frame(for: windowID) else { return }
+                if self.isMeaningfullyDifferent(bounds, self.lastTrackedBounds) == false {
+                    return
+                }
+                self.lastTrackedBounds = bounds
                 frameDidChange(bounds)
             }
         }
@@ -74,5 +80,15 @@ public final class GameWindowTracker: ObservableObject {
     public func stopTracking() {
         trackingTimer?.invalidate()
         trackingTimer = nil
+        lastTrackedBounds = nil
+    }
+
+    private func isMeaningfullyDifferent(_ lhs: CGRect, _ rhs: CGRect?) -> Bool {
+        guard let rhs else { return true }
+        let epsilon: CGFloat = 1.0
+        return abs(lhs.origin.x - rhs.origin.x) > epsilon
+            || abs(lhs.origin.y - rhs.origin.y) > epsilon
+            || abs(lhs.width - rhs.width) > epsilon
+            || abs(lhs.height - rhs.height) > epsilon
     }
 }
