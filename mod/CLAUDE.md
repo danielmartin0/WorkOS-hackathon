@@ -13,3 +13,9 @@ The following information will help you develop Factorio mods in this directory.
 
 * The Factorio API documentation is available at https://lua-api.factorio.com/latest/.
 * When adding entries for entities, recipes or other game objects to the locale file, you should usually avoid giving them descriptions.
+
+## Environment
+
+* For examples, you can look at the code of existing mods inside `/Applications/factorio-modding.app`.
+* If I ask you to pull in a pre-existing external asset from our assets library, that is located in `/Users/danielmartin/Dev/Git-External/factorio_free_graphics_for_modders`.
+* If you want to look at base game Lua code, you can find it in `/Users/danielmartin/Dev/Git-External/factorio-data`.
