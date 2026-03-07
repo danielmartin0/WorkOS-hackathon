@@ -7,5 +7,5 @@
   "contact": "",
   "factorio_version": "2.0",
   "space_travel_required": false,
-  "dependencies": ["base >= 2.0.72"]
+  "dependencies": ["base >= 2.0.72", "? aai-containers"]
 }
