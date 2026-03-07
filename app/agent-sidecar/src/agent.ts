@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { resolveAppWorkdir } from "./security.js";
 import type { AgentRequest, AgentResponse } from "./types.js";
 
 const ALLOWED_TOOLS = ["Read", "Write"] as const;
+const AGENT_CWD = resolveAppWorkdir();
 
 function buildPrompt(input: AgentRequest): string {
   const screenshotNote = input.screenshotPath
@@ -22,6 +24,8 @@ export async function runAgentQuery(input: AgentRequest): Promise<AgentResponse>
     options: {
       allowedTools: [...ALLOWED_TOOLS],
       settingSources: ["project"],
+      cwd: AGENT_CWD,
+      additionalDirectories: [AGENT_CWD],
       ...(input.sessionId ? { resume: input.sessionId } : {}),
     } as never,
   })) {

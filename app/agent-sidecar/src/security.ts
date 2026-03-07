@@ -1,9 +1,24 @@
 import path from "node:path";
+import fs from "node:fs";
 
 export function resolveAppWorkdir(): string {
   const fromEnv = process.env.AGENT_WORKDIR?.trim();
-  const fallback = path.resolve(process.cwd(), "..");
-  return path.resolve(fromEnv && fromEnv.length > 0 ? fromEnv : fallback);
+  if (fromEnv && fromEnv.length > 0) {
+    return path.resolve(fromEnv);
+  }
+
+  const cwd = process.cwd();
+  const candidates = [
+    cwd,
+    path.resolve(cwd, ".."),
+    path.resolve(cwd, "../.."),
+  ];
+
+  // Prefer the first directory that actually contains /mod.
+  const withMod = candidates.find((candidate) =>
+    fs.existsSync(path.join(candidate, "mod"))
+  );
+  return path.resolve(withMod ?? path.resolve(cwd, ".."));
 }
 
 export function ensurePathWithinWorkdir(workdir: string, candidate: string): string {

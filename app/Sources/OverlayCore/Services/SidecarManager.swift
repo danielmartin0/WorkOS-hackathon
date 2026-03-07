@@ -46,6 +46,7 @@ public final class SidecarManager {
 
         var env = ProcessInfo.processInfo.environment
         env["AGENT_WORKDIR"] = workspaceRoot.path
+        env["DOTENV_CONFIG_PATH"] = appRoot.appendingPathComponent(".env").path
         process.environment = env
         process.standardOutput = FileHandle.standardOutput
         process.standardError = FileHandle.standardError
