@@ -1,60 +1,32 @@
-# macOS Transparent Overlay App
+# AdaL Overlay (macOS)
 
-This folder contains the v1 implementation for the macOS overlay app and local sidecars.
+This app is a transparent game-overlay panel that runs a local `adal` terminal process and streams all terminal activity into the UI.
 
-## Structure
+## What it does
 
-- `Sources/OverlayApp` - executable entrypoint
-- `Sources/OverlayCore` - overlay UI + services
-- `agent-sidecar` - local Claude Agent SDK HTTP service (`POST /agent/query`)
+- Sends your chat message to local `adal` via stdin
+- Streams all stdout/stderr from `adal` back into the chat panel in real time
+- Keeps the panel anchored to the selected game window
 
 ## Requirements
 
 - macOS 14+
 - Xcode 16+
-- Node 20+
-- Python 3.11+
-- `uv`
+- `adal` available in terminal PATH (or set `ADAL_COMMAND`)
 
-## Environment
-
-Copy `.env.example` to `.env` and set:
-
-- `ANTHROPIC_API_KEY`
-
-## Run (dev)
+## Run
 
 ```bash
 cd /Users/hetpatel/Desktop/UI-HACK/app
 ./scripts/dev.sh
 ```
 
-## API Contracts
+## Optional env
 
-### Agent sidecar
-
-`POST /agent/query`
-
-```json
-{
-  "prompt": "string",
-  "sessionId": "optional string",
-  "screenshotPath": "optional absolute path inside repo root"
-}
-```
-
-Response:
-
-```json
-{
-  "text": "string",
-  "sessionId": "string"
-}
-```
+- `ADAL_COMMAND` (default: `adal`)
+  - Example: `ADAL_COMMAND="adal --some-flag"`
 
 ## Notes
 
-- Agent sidecar hard-locks tool permissions to `Read` and `Write`.
-- `AGENT_WORKDIR` is enforced for screenshot path safety and defaults to repo root (`/Users/.../UI-HACK`) so the agent can read/write files in `/mod`.
-- Overlay window is borderless/transparent and click-through outside controls.
-- Voice is intentionally disabled in this build while text + screenshot flow is stabilized.
+- The UI now uses local AdaL terminal bridging directly.
+- Previous network sidecars are no longer part of the active chat flow.

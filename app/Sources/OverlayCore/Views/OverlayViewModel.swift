@@ -1,5 +1,4 @@
 import AppKit
-import Combine
 import Foundation
 
 @MainActor
@@ -8,29 +7,35 @@ public final class OverlayViewModel: ObservableObject {
     @Published public var selectedWindowID: UInt32?
     @Published public var promptText: String = ""
     @Published public var chatLines: [String] = []
-    @Published public var statusLine: String = "Idle"
-    @Published public var permissionWarning: String?
-    @Published public var periodicCaptureEnabled: Bool = false
-    @Published public var periodicCaptureSeconds: Double = 5
-    @Published public var lastCapturedPath: String?
-
-    private var periodicTimer: Timer?
-    private var sessionId: String?
+    @Published public var statusLine: String = "AdaL idle"
 
     private let tracker = GameWindowTracker()
     private let layoutController = OverlayLayoutController()
-    private let captureService = CaptureService()
-    private let sidecarManager = SidecarManager()
-    private let agentClient = AgentClient()
-    public init() {}
+    private let adalBridge: AdalTerminalBridge
+
+    public init() {
+        adalBridge = AdalTerminalBridge()
+
+        adalBridge.onOutput = { [weak self] text, isError in
+            DispatchQueue.main.async {
+                self?.appendTerminalOutput(text: text, isError: isError)
+            }
+        }
+
+        adalBridge.onStateChange = { [weak self] state in
+            DispatchQueue.main.async {
+                self?.applyState(state)
+            }
+        }
+    }
 
     public func attachOverlayWindow(_ window: NSWindow) {
         layoutController.bind(window: window)
     }
 
     public func bootstrap() {
-        sidecarManager.startAll()
         refreshWindows()
+        startAdal()
     }
 
     public func refreshWindows() {
@@ -49,52 +54,16 @@ public final class OverlayViewModel: ObservableObject {
         }
     }
 
-    public func captureNow() {
-        guard let selectedWindowID else {
-            statusLine = "Select a game window first"
-            return
-        }
-
-        Task {
-            do {
-                let timestamp = Int(Date().timeIntervalSince1970)
-                let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                let workspaceRoot = currentDir.lastPathComponent == "app"
-                    ? currentDir.deletingLastPathComponent()
-                    : currentDir
-                let captureRoot = workspaceRoot
-                    .appendingPathComponent("mod", isDirectory: true)
-                    .appendingPathComponent("captures", isDirectory: true)
-                let fileURL = captureRoot
-                    .appendingPathComponent("window-\(selectedWindowID)-\(timestamp).png")
-
-                let saved = try await captureService.captureWindow(windowID: selectedWindowID, destinationURL: fileURL)
-                lastCapturedPath = saved.path
-                statusLine = "Captured screenshot"
-            } catch CaptureError.permissionDenied {
-                permissionWarning = "Grant Screen Recording permission in System Settings > Privacy & Security > Screen Recording."
-                statusLine = "Capture permission denied"
-            } catch {
-                statusLine = "Capture failed: \(error.localizedDescription)"
-            }
-        }
+    public func startAdal() {
+        adalBridge.startIfNeeded()
     }
 
-    public func togglePeriodicCapture() {
-        periodicCaptureEnabled.toggle()
-        periodicTimer?.invalidate()
+    public func restartAdal() {
+        adalBridge.restart()
+    }
 
-        guard periodicCaptureEnabled else {
-            statusLine = "Periodic capture disabled"
-            return
-        }
-
-        periodicTimer = Timer.scheduledTimer(withTimeInterval: periodicCaptureSeconds, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.captureNow()
-            }
-        }
-        statusLine = "Periodic capture enabled"
+    public func stopAdal() {
+        adalBridge.stop()
     }
 
     public func sendPrompt() {
@@ -103,18 +72,37 @@ public final class OverlayViewModel: ObservableObject {
 
         chatLines.append("You: \(trimmed)")
         promptText = ""
-        statusLine = "Querying agent..."
+        adalBridge.sendMessage(trimmed)
+    }
 
-        Task {
-            do {
-                let response = try await agentClient.query(prompt: trimmed, sessionId: sessionId, screenshotPath: lastCapturedPath)
-                sessionId = response.sessionId
-                chatLines.append("Agent: \(response.text)")
-                statusLine = "Ready"
-            } catch {
-                chatLines.append("Agent error: \(error.localizedDescription)")
-                statusLine = "Agent request failed"
-            }
+    private func appendTerminalOutput(text: String, isError: Bool) {
+        let lines = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: true)
+
+        for line in lines {
+            chatLines.append("\(isError ? "AdaL !" : "AdaL"): \(line)")
+        }
+
+        if chatLines.count > 400 {
+            chatLines.removeFirst(chatLines.count - 400)
+        }
+    }
+
+    private func applyState(_ state: AdalTerminalBridge.State) {
+        switch state {
+        case .idle:
+            statusLine = "AdaL idle"
+        case .starting:
+            statusLine = "Starting AdaL..."
+        case .running(let pid):
+            statusLine = "AdaL running (pid: \(pid))"
+        case .stopped(let code):
+            statusLine = "AdaL stopped (exit: \(code))"
+        case .failed(let message):
+            statusLine = message
+            chatLines.append("AdaL !: \(message)")
         }
     }
 }

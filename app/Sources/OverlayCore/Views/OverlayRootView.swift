@@ -15,20 +15,14 @@ public struct OverlayRootView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             windowPicker
-            controls
+            terminalControls
             chat
-            if let warning = viewModel.permissionWarning {
-                Text(warning)
-                    .font(.footnote)
-                    .foregroundStyle(.yellow)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
             Text(viewModel.statusLine)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(14)
-        .frame(width: 420)
+        .frame(width: 460)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contentShape(RoundedRectangle(cornerRadius: 14))
@@ -39,7 +33,7 @@ public struct OverlayRootView: View {
 
     private var header: some View {
         HStack {
-            Text("Game Overlay")
+            Text("AdaL Overlay")
                 .font(.headline)
             Spacer()
             Button("Refresh") {
@@ -66,19 +60,19 @@ public struct OverlayRootView: View {
         }
     }
 
-    private var controls: some View {
+    private var terminalControls: some View {
         VStack(spacing: 8) {
             HStack {
-                Button("Capture now") { viewModel.captureNow() }
+                Button("Start") { viewModel.startAdal() }
                     .buttonStyle(.borderedProminent)
-                Button(viewModel.periodicCaptureEnabled ? "Stop periodic" : "Start periodic") {
-                    viewModel.togglePeriodicCapture()
-                }
-                .buttonStyle(.bordered)
+                Button("Restart") { viewModel.restartAdal() }
+                    .buttonStyle(.bordered)
+                Button("Stop") { viewModel.stopAdal() }
+                    .buttonStyle(.bordered)
             }
 
             HStack {
-                TextField("Ask the agent...", text: $viewModel.promptText)
+                TextField("Message to adal...", text: $viewModel.promptText)
                 Button("Send") {
                     viewModel.sendPrompt()
                 }
@@ -93,12 +87,12 @@ public struct OverlayRootView: View {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(viewModel.chatLines.enumerated()), id: \.offset) { _, line in
                     Text(line)
-                        .font(.system(size: 12))
+                        .font(.system(size: 12, design: .monospaced))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 }
             }
         }
-        .frame(maxHeight: 220)
+        .frame(maxHeight: 300)
     }
 }
