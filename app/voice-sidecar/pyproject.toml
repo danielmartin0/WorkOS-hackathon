@@ -1,0 +1,17 @@
+[project]
+name = "overlay-voice-sidecar"
+version = "0.1.0"
+description = "Local voice sidecar for the macOS overlay app"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.28.1",
+  "openai>=1.107.0",
+  "python-dotenv>=1.1.1",
+  "websockets>=15.0.1"
+]
+
+[project.optional-dependencies]
+pipecat = ["pipecat-ai>=0.0.104"]
+
+[tool.uv]
+dev-dependencies = []
