@@ -72,7 +72,6 @@ public struct OverlayRootView: View {
                 Button(viewModel.periodicCaptureEnabled ? "Stop periodic" : "Start periodic") {
                     viewModel.togglePeriodicCapture()
                 }
-                Button("Voice") { viewModel.toggleVoice() }
             }
 
             HStack {

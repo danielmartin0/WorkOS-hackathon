@@ -12,8 +12,8 @@ public final class OverlayLayoutController {
 
     public func updateOverlayFrame(usingCGWindowBounds bounds: CGRect) {
         guard let window else { return }
-        let screenHeight = NSScreen.main?.frame.height ?? bounds.height
-        let targetFrame = OverlayGeometry.cocoaFrame(fromCGWindowBounds: bounds, screenHeight: screenHeight)
+        let desktopTop = NSScreen.screens.map { $0.frame.maxY }.max() ?? bounds.maxY
+        let targetFrame = OverlayGeometry.cocoaFrame(fromCGWindowBounds: bounds, screenHeight: desktopTop)
         window.setFrame(targetFrame, display: true)
     }
 }

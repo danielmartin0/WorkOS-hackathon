@@ -22,13 +22,7 @@ public final class OverlayViewModel: ObservableObject {
     private let captureService = CaptureService()
     private let sidecarManager = SidecarManager()
     private let agentClient = AgentClient()
-    private let voiceClient = VoiceClient()
-
-    public init() {
-        voiceClient.onEvent = { [weak self] event in
-            self?.handleVoiceEvent(event)
-        }
-    }
+    public init() {}
 
     public func attachOverlayWindow(_ window: NSWindow) {
         layoutController.bind(window: window)
@@ -115,33 +109,6 @@ public final class OverlayViewModel: ObservableObject {
                 chatLines.append("Agent error: \(error.localizedDescription)")
                 statusLine = "Agent request failed"
             }
-        }
-    }
-
-    public func toggleVoice() {
-        if statusLine == "Voice active" {
-            voiceClient.stopVoiceSession()
-            statusLine = "Voice stopped"
-            return
-        }
-
-        voiceClient.startVoiceSession(sessionId: sessionId)
-        statusLine = "Voice active"
-    }
-
-    private func handleVoiceEvent(_ event: VoiceServerEvent) {
-        switch event {
-        case .transcriptPartial(let text):
-            statusLine = "Listening: \(text)"
-        case .transcriptFinal(let text):
-            chatLines.append("You (voice): \(text)")
-        case .agentText(let text):
-            chatLines.append("Agent: \(text)")
-        case .audioChunk:
-            statusLine = "Speaking"
-        case .error(let message):
-            chatLines.append("Voice error: \(message)")
-            statusLine = "Voice error"
         }
     }
 }

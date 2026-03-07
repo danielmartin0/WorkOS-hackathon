@@ -3,7 +3,6 @@ import Foundation
 @MainActor
 public final class SidecarManager {
     private var agentProcess: Process?
-    private var voiceProcess: Process?
     private let appRoot: URL
 
     public init(appRoot: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)) {
@@ -12,11 +11,10 @@ public final class SidecarManager {
 
     public func startAll() {
         startAgentSidecar()
-        startVoiceSidecar()
     }
 
     public func stopAll() {
-        [agentProcess, voiceProcess].forEach { process in
+        [agentProcess].forEach { process in
             guard let process, process.isRunning else { return }
             process.terminate()
         }
@@ -51,24 +49,6 @@ public final class SidecarManager {
             agentProcess = process
         } catch {
             print("Failed to start agent sidecar: \(error.localizedDescription)")
-        }
-    }
-
-    private func startVoiceSidecar() {
-        guard voiceProcess == nil || voiceProcess?.isRunning == false else { return }
-
-        let process = Process()
-        process.currentDirectoryURL = appRoot
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["python3", "voice-sidecar/main.py"]
-        process.standardOutput = FileHandle.standardOutput
-        process.standardError = FileHandle.standardError
-
-        do {
-            try process.run()
-            voiceProcess = process
-        } catch {
-            print("Failed to start voice sidecar: \(error.localizedDescription)")
         }
     }
 }
