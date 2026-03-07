@@ -1,134 +1,196 @@
 import Foundation
 
+public struct AdalSession: Identifiable, Hashable, Sendable {
+    public let pid: Int32
+    public let tty: String
+    public let command: String
+
+    public init(pid: Int32, tty: String, command: String) {
+        self.pid = pid
+        self.tty = tty
+        self.command = command
+    }
+
+    public var id: String {
+        "\(pid)-\(tty)"
+    }
+
+    public var devicePath: String {
+        "/dev/\(tty)"
+    }
+
+    public var title: String {
+        "pid \(pid) • \(tty)"
+    }
+}
+
 public final class AdalTerminalBridge: @unchecked Sendable {
     public enum State: Equatable, Sendable {
         case idle
-        case starting
-        case running(pid: Int32)
-        case stopped(exitCode: Int32)
+        case attached(sessionID: String)
+        case detached
         case failed(message: String)
     }
 
     public var onOutput: (@Sendable (String, Bool) -> Void)?
     public var onStateChange: (@Sendable (State) -> Void)?
 
-    private let command: String
-    private let workingDirectory: URL
-
-    private var process: Process?
-    private var stdinPipe: Pipe?
+    private var monitorProcess: Process?
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
+    private var attachedSession: AdalSession?
 
-    public init(
-        command: String = ProcessInfo.processInfo.environment["ADAL_COMMAND"] ?? "adal",
-        workingDirectory: URL? = nil
-    ) {
-        self.command = command
-        self.workingDirectory = workingDirectory ?? AdalTerminalBridge.defaultWorkingDirectory()
-        self.onStateChange?(.idle)
+    public init() {}
+
+    public func listSessions() throws -> [AdalSession] {
+        let output = try runCommand(["/bin/zsh", "-lc", "ps -axo pid=,tty=,command="])
+        let sessions = output
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .compactMap { parseSessionLine(String($0)) }
+            .filter { session in
+                session.command.localizedCaseInsensitiveContains("adal")
+                    && session.tty != "?"
+                    && session.tty != "??"
+            }
+            .sorted { lhs, rhs in
+                lhs.pid > rhs.pid
+            }
+
+        return sessions
     }
 
-    public func startIfNeeded() {
-        if let process, process.isRunning {
-            return
-        }
-        start()
-    }
-
-    public func restart() {
-        stop()
-        start()
-    }
-
-    public func sendMessage(_ message: String) {
-        startIfNeeded()
-        guard let stdinPipe else {
-            onStateChange?(.failed(message: "AdaL stdin unavailable"))
+    public func attach(to session: AdalSession) {
+        if attachedSession?.id == session.id, monitorProcess?.isRunning == true {
             return
         }
 
-        guard let payload = (message + "\n").data(using: .utf8) else {
-            return
-        }
-
-        stdinPipe.fileHandleForWriting.write(payload)
-    }
-
-    public func stop() {
-        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
-        stderrPipe?.fileHandleForReading.readabilityHandler = nil
-
-        if let process, process.isRunning {
-            process.terminate()
-        }
-
-        process = nil
-        stdinPipe = nil
-        stdoutPipe = nil
-        stderrPipe = nil
-        onStateChange?(.idle)
-    }
-
-    private func start() {
-        onStateChange?(.starting)
+        detach()
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lc", command]
-        process.currentDirectoryURL = workingDirectory
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["tail", "-n", "0", "-f", session.devicePath]
 
-        let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
 
-        process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
         let outputCallback = self.onOutput
-        let outputHandler: (FileHandle, Bool) -> Void = { handle, isError in
-            handle.readabilityHandler = { source in
-                let data = source.availableData
-                guard data.isEmpty == false,
-                      let text = String(data: data, encoding: .utf8),
-                      text.isEmpty == false
-                else {
-                    return
-                }
-                outputCallback?(text, isError)
+        let stateCallback = self.onStateChange
+
+        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard data.isEmpty == false,
+                  let text = String(data: data, encoding: .utf8),
+                  text.isEmpty == false
+            else {
+                return
             }
+            outputCallback?(text, false)
         }
 
-        outputHandler(stdoutPipe.fileHandleForReading, false)
-        outputHandler(stderrPipe.fileHandleForReading, true)
+        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard data.isEmpty == false,
+                  let text = String(data: data, encoding: .utf8),
+                  text.isEmpty == false
+            else {
+                return
+            }
+            outputCallback?(text, true)
+        }
 
-        process.terminationHandler = { [weak self] proc in
-            self?.onStateChange?(.stopped(exitCode: proc.terminationStatus))
+        process.terminationHandler = { [weak self] _ in
             self?.stdoutPipe?.fileHandleForReading.readabilityHandler = nil
             self?.stderrPipe?.fileHandleForReading.readabilityHandler = nil
-            self?.process = nil
-            self?.stdinPipe = nil
+            self?.monitorProcess = nil
             self?.stdoutPipe = nil
             self?.stderrPipe = nil
         }
 
         do {
             try process.run()
-            self.process = process
-            self.stdinPipe = stdinPipe
+            self.attachedSession = session
+            self.monitorProcess = process
             self.stdoutPipe = stdoutPipe
             self.stderrPipe = stderrPipe
-            onStateChange?(.running(pid: process.processIdentifier))
-            onOutput?("[adal] started in \(workingDirectory.path)", false)
+            stateCallback?(.attached(sessionID: session.id))
+            outputCallback?("[adal] attached to \(session.title)", false)
         } catch {
-            onStateChange?(.failed(message: "Failed to launch adal: \(error.localizedDescription)"))
+            stateCallback?(.failed(message: "Failed to attach to \(session.devicePath): \(error.localizedDescription)"))
         }
     }
 
-    private static func defaultWorkingDirectory() -> URL {
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let workspaceRoot = cwd.lastPathComponent == "app" ? cwd.deletingLastPathComponent() : cwd
-        return workspaceRoot.appendingPathComponent("mod")
+    public func detach() {
+        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
+        stderrPipe?.fileHandleForReading.readabilityHandler = nil
+
+        if let monitorProcess, monitorProcess.isRunning {
+            monitorProcess.terminate()
+        }
+
+        attachedSession = nil
+        monitorProcess = nil
+        stdoutPipe = nil
+        stderrPipe = nil
+
+        onStateChange?(.detached)
+    }
+
+    public func sendMessage(_ message: String) {
+        guard let attachedSession else {
+            onStateChange?(.failed(message: "No AdaL terminal attached"))
+            return
+        }
+
+        let payload = message + "\n"
+        guard let data = payload.data(using: .utf8) else {
+            return
+        }
+
+        do {
+            let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: attachedSession.devicePath))
+            try handle.seekToEnd()
+            handle.write(data)
+            try handle.close()
+        } catch {
+            onStateChange?(.failed(message: "Failed writing to \(attachedSession.devicePath): \(error.localizedDescription)"))
+        }
+    }
+
+    private func runCommand(_ arguments: [String]) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: arguments[0])
+        process.arguments = Array(arguments.dropFirst())
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        try process.run()
+        process.waitUntilExit()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    private func parseSessionLine(_ line: String) -> AdalSession? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            return nil
+        }
+
+        let parts = trimmed.split(maxSplits: 2, whereSeparator: { $0.isWhitespace })
+        guard parts.count == 3,
+              let pid = Int32(parts[0])
+        else {
+            return nil
+        }
+
+        let tty = String(parts[1])
+        let command = String(parts[2])
+
+        return AdalSession(pid: pid, tty: tty, command: command)
     }
 }

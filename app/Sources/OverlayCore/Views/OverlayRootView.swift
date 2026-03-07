@@ -15,6 +15,7 @@ public struct OverlayRootView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             windowPicker
+            adalSessionPicker
             terminalControls
             chat
             Text(viewModel.statusLine)
@@ -22,7 +23,7 @@ public struct OverlayRootView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(14)
-        .frame(width: 460)
+        .frame(width: 500)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contentShape(RoundedRectangle(cornerRadius: 14))
@@ -36,7 +37,7 @@ public struct OverlayRootView: View {
             Text("AdaL Overlay")
                 .font(.headline)
             Spacer()
-            Button("Refresh") {
+            Button("Refresh Windows") {
                 viewModel.refreshWindows()
             }
             .buttonStyle(.bordered)
@@ -60,19 +61,47 @@ public struct OverlayRootView: View {
         }
     }
 
+    private var adalSessionPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("AdaL Session")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Refresh Sessions") {
+                    viewModel.refreshAdalSessions()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Picker("AdaL Session", selection: Binding(
+                get: { viewModel.selectedAdalSessionID ?? "" },
+                set: { viewModel.selectAdalSession(id: $0) }
+            )) {
+                if viewModel.adalSessions.isEmpty {
+                    Text("No adal sessions found").tag("")
+                } else {
+                    ForEach(viewModel.adalSessions) { session in
+                        Text("\(session.title) • \(session.command)").tag(session.id)
+                    }
+                }
+            }
+            .labelsHidden()
+        }
+    }
+
     private var terminalControls: some View {
         VStack(spacing: 8) {
             HStack {
-                Button("Start") { viewModel.startAdal() }
+                Button("Attach") { viewModel.attachSelectedSession() }
                     .buttonStyle(.borderedProminent)
-                Button("Restart") { viewModel.restartAdal() }
-                    .buttonStyle(.bordered)
-                Button("Stop") { viewModel.stopAdal() }
+                    .disabled(viewModel.adalSessions.isEmpty)
+                Button("Detach") { viewModel.detachSession() }
                     .buttonStyle(.bordered)
             }
 
             HStack {
-                TextField("Message to adal...", text: $viewModel.promptText)
+                TextField("Message to selected adal terminal...", text: $viewModel.promptText)
                 Button("Send") {
                     viewModel.sendPrompt()
                 }

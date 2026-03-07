@@ -5,9 +5,13 @@ import Foundation
 public final class OverlayViewModel: ObservableObject {
     @Published public var availableWindows: [TargetWindowInfo] = []
     @Published public var selectedWindowID: UInt32?
+
+    @Published public var adalSessions: [AdalSession] = []
+    @Published public var selectedAdalSessionID: String?
+
     @Published public var promptText: String = ""
     @Published public var chatLines: [String] = []
-    @Published public var statusLine: String = "AdaL idle"
+    @Published public var statusLine: String = "No AdaL terminal attached"
 
     private let tracker = GameWindowTracker()
     private let layoutController = OverlayLayoutController()
@@ -35,7 +39,7 @@ public final class OverlayViewModel: ObservableObject {
 
     public func bootstrap() {
         refreshWindows()
-        startAdal()
+        refreshAdalSessions()
     }
 
     public func refreshWindows() {
@@ -54,16 +58,42 @@ public final class OverlayViewModel: ObservableObject {
         }
     }
 
-    public func startAdal() {
-        adalBridge.startIfNeeded()
+    public func refreshAdalSessions() {
+        do {
+            let sessions = try adalBridge.listSessions()
+            adalSessions = sessions
+
+            if let selectedAdalSessionID,
+               adalSessions.contains(where: { $0.id == selectedAdalSessionID }) {
+                return
+            }
+
+            selectedAdalSessionID = adalSessions.first?.id
+        } catch {
+            statusLine = "Failed to list adal terminals"
+            chatLines.append("AdaL !: Failed to list terminals: \(error.localizedDescription)")
+        }
     }
 
-    public func restartAdal() {
-        adalBridge.restart()
+    public func selectAdalSession(id: String) {
+        selectedAdalSessionID = id
+        if id.isEmpty == false {
+            attachSelectedSession()
+        }
     }
 
-    public func stopAdal() {
-        adalBridge.stop()
+    public func attachSelectedSession() {
+        guard let selectedAdalSessionID,
+              let session = adalSessions.first(where: { $0.id == selectedAdalSessionID }) else {
+            statusLine = "Select an AdaL session"
+            return
+        }
+
+        adalBridge.attach(to: session)
+    }
+
+    public func detachSession() {
+        adalBridge.detach()
     }
 
     public func sendPrompt() {
@@ -85,21 +115,20 @@ public final class OverlayViewModel: ObservableObject {
             chatLines.append("\(isError ? "AdaL !" : "AdaL"): \(line)")
         }
 
-        if chatLines.count > 400 {
-            chatLines.removeFirst(chatLines.count - 400)
+        if chatLines.count > 500 {
+            chatLines.removeFirst(chatLines.count - 500)
         }
     }
 
     private func applyState(_ state: AdalTerminalBridge.State) {
         switch state {
         case .idle:
-            statusLine = "AdaL idle"
-        case .starting:
-            statusLine = "Starting AdaL..."
-        case .running(let pid):
-            statusLine = "AdaL running (pid: \(pid))"
-        case .stopped(let code):
-            statusLine = "AdaL stopped (exit: \(code))"
+            statusLine = "No AdaL terminal attached"
+        case .attached(let sessionID):
+            let title = adalSessions.first(where: { $0.id == sessionID })?.title ?? sessionID
+            statusLine = "Attached: \(title)"
+        case .detached:
+            statusLine = "Detached"
         case .failed(let message):
             statusLine = message
             chatLines.append("AdaL !: \(message)")
