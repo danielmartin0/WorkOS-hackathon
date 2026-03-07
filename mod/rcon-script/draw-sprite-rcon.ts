@@ -7,7 +7,7 @@ const rcon = await Rcon.connect({
 })
 
 const response = await rcon.send(
-  'rendering.draw_sprite({sprite = "file/sprite.png",render_layer = "object",surface = "nauvis",target = { x = 0, y = 10 }})',
+  '/silent-command rendering.draw_sprite({sprite = "file/image.png",render_layer = "object",surface = "nauvis",target = { x = 0, y = 10 }})',
 )
 console.log("Response:", response)
 
