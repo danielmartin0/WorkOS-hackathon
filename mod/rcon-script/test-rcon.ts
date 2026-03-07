@@ -7,10 +7,14 @@ if (!commandToRun) {
   process.exit(1)
 }
 
+const rconHost = process.env.RCON_HOST ?? "127.0.0.1"
+const rconPort = Number(process.env.RCON_PORT ?? "27015")
+const rconPassword = process.env.RCON_PASSWORD ?? "mysecretpassword"
+
 const rcon = await Rcon.connect({
-  host: "localhost",
-  port: 27015,
-  password: "mysecretpassword",
+  host: rconHost,
+  port: rconPort,
+  password: rconPassword,
 })
 
 // Send the very first command first, then execute passed CLI command
