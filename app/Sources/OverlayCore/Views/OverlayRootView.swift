@@ -51,7 +51,7 @@ public struct OverlayRootView: View {
         .contentShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.35), radius: 14, y: 8)
         .padding(20)
-        .allowsHitTesting(false)
+        .allowsHitTesting(true)
     }
 
     private var header: some View {
@@ -71,7 +71,6 @@ public struct OverlayRootView: View {
             .buttonStyle(.bordered)
             .tint(.cyan)
         }
-        .allowsHitTesting(true)
     }
 
     private var windowPicker: some View {
@@ -90,7 +89,6 @@ public struct OverlayRootView: View {
             .labelsHidden()
             .tint(.white)
         }
-        .allowsHitTesting(true)
     }
 
     private var adalSessionPicker: some View {
@@ -122,7 +120,6 @@ public struct OverlayRootView: View {
             .labelsHidden()
             .tint(.white)
         }
-        .allowsHitTesting(true)
     }
 
     private var terminalControls: some View {
@@ -148,7 +145,6 @@ public struct OverlayRootView: View {
                 .keyboardShortcut(.return)
             }
         }
-        .allowsHitTesting(true)
     }
 
     private var chat: some View {
@@ -167,7 +163,6 @@ public struct OverlayRootView: View {
         .padding(10)
         .background(Color.black.opacity(0.34))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .allowsHitTesting(true)
     }
 
     private var statusBar: some View {
