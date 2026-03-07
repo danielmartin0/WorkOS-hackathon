@@ -1,0 +1,10 @@
+.build
+DerivedData
+.env
+captures
+
+agent-sidecar/node_modules
+agent-sidecar/dist
+
+voice-sidecar/.venv
+__pycache__
