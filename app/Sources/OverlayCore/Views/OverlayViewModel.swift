@@ -58,8 +58,9 @@ public final class OverlayViewModel: ObservableObject {
         Task {
             do {
                 let timestamp = Int(Date().timeIntervalSince1970)
-                let fileURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                    .appendingPathComponent("overlay-captures", isDirectory: true)
+                let captureRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                    .appendingPathComponent("captures", isDirectory: true)
+                let fileURL = captureRoot
                     .appendingPathComponent("window-\(selectedWindowID)-\(timestamp).png")
 
                 let saved = try await captureService.captureWindow(windowID: selectedWindowID, destinationURL: fileURL)

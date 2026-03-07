@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let window = controller.window {
             viewModel.attachOverlayWindow(window)
             controller.showWindow(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
 
         viewModel.bootstrap()

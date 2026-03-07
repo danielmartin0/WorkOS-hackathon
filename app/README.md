@@ -39,7 +39,7 @@ cd /Users/hetpatel/Desktop/UI-HACK/app
 {
   "prompt": "string",
   "sessionId": "optional string",
-  "screenshotPath": "optional absolute path inside /app"
+  "screenshotPath": "optional absolute path inside repo root"
 }
 ```
 
@@ -55,6 +55,6 @@ Response:
 ## Notes
 
 - Agent sidecar hard-locks tool permissions to `Read` and `Write`.
-- `AGENT_WORKDIR` is enforced for screenshot path safety.
+- `AGENT_WORKDIR` is enforced for screenshot path safety and defaults to repo root (`/Users/.../UI-HACK`) so the agent can read/write files in `/mod`.
 - Overlay window is borderless/transparent and click-through outside controls.
 - Voice is intentionally disabled in this build while text + screenshot flow is stabilized.
