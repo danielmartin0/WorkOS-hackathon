@@ -10,7 +10,7 @@ The following information will help you develop Factorio mods in this directory.
 
 ## Firing RCON commands at the game
 
-In order to make something happen in the game, such as creating enemies near the player, you should execute our RCON script, which is in our npm project in the `rcon-script` directory. In that directory, you can execute the script like so: `npx tsx test-rcon.ts '/silent-command for i=1,3 do game.surfaces["nauvis"].create_entity{name="small-biter", position={x=i,y=0}, force=game.forces.enemy} end'`
+In order to make something happen in the game, such as creating enemies near the player, you should execute our RCON script, which is in our npm project in the `mod/rcon-script` directory. In that directory, you can execute the script like so: `npx tsx test-rcon.ts '/silent-command for i=1,3 do game.surfaces["nauvis"].create_entity{name="small-biter", position={x=i,y=0}, force=game.forces.enemy} end'`
 
 ## Generating and saving new images
 
