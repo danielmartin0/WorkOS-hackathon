@@ -72,9 +72,13 @@
   }
   
   #tab:hover { 
-    background: var(--border-line); 
-    border-color: var(--border-line-hover);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    background: var(--accent); 
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 6px 20px var(--accent-glow);
+  }
+  #tab:hover span {
+    color: #fff;
   }
 
   /* ── panel ── */
@@ -248,6 +252,34 @@
   .line.you  { color: var(--accent); font-weight: 600; }
   .line.sys  { color: var(--text-dark); font-style: italic; }
 
+  /* pending container */
+  #pending-container {
+    display: none;
+    align-items: center;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-line);
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-family: 'SF Mono', 'Menlo', 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .pulse-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 12px;
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: pulse 1.5s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
   /* input */
   #inputbar {
     display: flex;
@@ -413,16 +445,20 @@
     <button id="anchor-btn">Lock</button>
   </div>
   <div id="output"></div>
+  <div id="pending-container">
+    <div class="pulse-dot"></div>
+    <div id="pending-text" style="white-space: pre-wrap; word-break: break-word;"></div>
+  </div>
   <div id="inputbar">
     <input id="input" type="text" placeholder="Send command..." autocomplete="off" spellcheck="false" />
-    <button id="mods-toggle">mods ▾</button>
+    <button id="mods-toggle">IMAGES ▾</button>
     <button id="send-btn" disabled>
       <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
     </button>
   </div>
   <div id="mod-panel">
     <div id="mod-head">
-      <span id="mod-title">mod images</span>
+      <span id="mod-title">IMAGES</span>
       <button id="mod-refresh">↺</button>
     </div>
     <div id="mod-grid"></div>
@@ -489,6 +525,7 @@
         if (l.includes('⏺')) {
           capturingAppend = true;
           l = l.substring(l.indexOf('⏺'));
+          document.getElementById('pending-container').style.display = 'none';
         } else if (capturingAppend) {
           const stripped = l.replace(/[\u2500-\u25FF]+/g, '');
           if (stripped.length > 0 && stripped[0] !== ' ') {
@@ -522,6 +559,7 @@
       if (l.includes('⏺')) {
         capturing = true;
         l = l.substring(l.indexOf('⏺'));
+        document.getElementById('pending-container').style.display = 'none';
       } else if (capturing) {
         const stripped = l.replace(/[\u2500-\u25FF]+/g, '');
         if (stripped.length > 0 && stripped[0] !== ' ') {
@@ -552,7 +590,7 @@
   function setModPanelOpen(open) {
     modPanelOpen = open
     modPanelEl.classList.toggle('open', open)
-    modsToggleEl.textContent = open ? 'mods ▴' : 'mods ▾'
+    modsToggleEl.textContent = open ? 'IMAGES ▴' : 'IMAGES ▾'
     if (open) loadModImages()
   }
 
@@ -578,6 +616,7 @@
 
       btn.appendChild(imageEl)
       btn.addEventListener('click', async () => {
+        setModPanelOpen(false)
         const r = await window.adal.runModImageAction(img.path)
         if (!r.ok) {
           appendLine('factorio launch error: ' + r.error, 'err')
@@ -596,7 +635,7 @@
       const r = await window.adal.listModImages()
       if (!r.ok) {
         modImages = []
-        modTitleEl.textContent = 'mod images (not found)'
+        modTitleEl.textContent = 'IMAGES (not found)'
         modGridEl.innerHTML = ''
         const empty = document.createElement('div')
         empty.className = 'mod-empty'
@@ -605,7 +644,7 @@
         return
       }
       modImages = r.images || []
-      modTitleEl.textContent = `mod images (${modImages.length})`
+      modTitleEl.textContent = `IMAGES (${modImages.length})`
       renderModImages()
     } finally {
       loadingModImages = false
@@ -715,9 +754,16 @@
     sendBtn.disabled = true
     const target = findSessionById(currentSessionId)
     const route = target?.paneRef ? ` [${target.paneRef}]` : target?.tty ? ` [${target.tty}]` : ''
-    appendLine(`›${route} ` + text, 'you')
+    
+    document.getElementById('pending-text').textContent = `›${route} ` + text;
+    document.getElementById('pending-container').style.display = 'flex';
+    outputEl.scrollTop = outputEl.scrollHeight;
+
     const r = await window.adal.sendMessage(text)
-    if (!r.ok) appendLine('error: ' + r.error, 'err')
+    if (!r.ok) {
+      appendLine('error: ' + r.error, 'err')
+      document.getElementById('pending-container').style.display = 'none';
+    }
   }
 
   sendBtn.addEventListener('click', send)

@@ -84,11 +84,9 @@ function collectModImages(rootDir, dir, out, limit = 250, depth = 0) {
   for (const entry of entries) {
     if (out.length >= limit) break
     const fullPath = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      collectModImages(rootDir, fullPath, out, limit, depth + 1)
+    if (entry.isDirectory() || !entry.isFile()) {
       continue
     }
-    if (!entry.isFile()) continue
     const ext = path.extname(entry.name).toLowerCase()
     if (!MOD_IMAGE_EXTS.has(ext)) continue
     out.push({
