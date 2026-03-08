@@ -3,6 +3,7 @@ const { execSync, execFileSync, spawn } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { pathToFileURL } = require('url')
 
 let win
 let terminalProcess = null
@@ -18,6 +19,9 @@ const OVERLAY_SESSION_ID = 'overlay-local-shell'
 const SESSION_SCAN_CMD = 'ps -axo pid=,ppid=,tpgid=,tty=,command='
 const BRIDGE_ROOT = path.join(os.homedir(), '.adal-overlay')
 const TMUX_LIST_FORMAT = '#{pane_id}\t#{pane_tty}\t#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_command}\t#{pane_active}\t#{pane_title}'
+const MOD_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'])
+const MOD_SCAN_ROOTS = ['/mod', path.resolve(__dirname, '..', 'mod')]
+const FACTORIO_RESTART_CMD = 'pkill -9 -f "factorio-modding.app" 2>/dev/null; sleep 0.5; "/Applications/factorio-modding.app/Contents/MacOS/factorio"'
 const overlaySession = {
   id: OVERLAY_SESSION_ID,
   type: 'local',
@@ -57,6 +61,79 @@ function getWindows() {
 }
 
 ipcMain.handle('list-windows', () => getWindows())
+
+function resolveModRoot() {
+  return MOD_SCAN_ROOTS.find((candidate) => {
+    try {
+      return fs.statSync(candidate).isDirectory()
+    } catch {
+      return false
+    }
+  }) || null
+}
+
+function collectModImages(rootDir, dir, out, limit = 250, depth = 0) {
+  if (depth > 6 || out.length >= limit) return
+  let entries = []
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    if (out.length >= limit) break
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      collectModImages(rootDir, fullPath, out, limit, depth + 1)
+      continue
+    }
+    if (!entry.isFile()) continue
+    const ext = path.extname(entry.name).toLowerCase()
+    if (!MOD_IMAGE_EXTS.has(ext)) continue
+    out.push({
+      name: entry.name,
+      path: fullPath,
+      relativePath: path.relative(rootDir, fullPath),
+      url: pathToFileURL(fullPath).toString(),
+    })
+  }
+}
+
+ipcMain.handle('list-mod-images', () => {
+  const root = resolveModRoot()
+  if (!root) {
+    return { ok: false, error: 'mod directory not found (/mod or ../mod)' }
+  }
+  const images = []
+  collectModImages(root, root, images)
+  images.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+  return { ok: true, sourceDir: root, images }
+})
+
+ipcMain.handle('run-mod-image-action', (_, imagePath) => {
+  try {
+    if (imagePath && typeof imagePath === 'string') {
+      if (!fs.existsSync(imagePath)) {
+        return { ok: false, error: `image not found: ${imagePath}` }
+      }
+    }
+
+    execFileSync('osascript', [
+      '-e', 'tell application "Terminal"',
+      '-e', 'activate',
+      '-e', `do script ${JSON.stringify(FACTORIO_RESTART_CMD)}`,
+      '-e', 'end tell',
+    ], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    return { ok: true, command: FACTORIO_RESTART_CMD }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
 
 // ── anchor to a window by pid ─────────────────────────────
 ipcMain.handle('anchor', (_, pid) => {

@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld('adal', {
   listWindows: () => ipcRenderer.invoke('list-windows'),
   anchor: (pid) => ipcRenderer.invoke('anchor', pid),
   unanchor: () => ipcRenderer.invoke('unanchor'),
+  listModImages: () => ipcRenderer.invoke('list-mod-images'),
+  runModImageAction: (imagePath) => ipcRenderer.invoke('run-mod-image-action', imagePath),
 })

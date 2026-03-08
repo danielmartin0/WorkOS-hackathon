@@ -290,6 +290,88 @@
     border-color: var(--border-subtle);
     color: var(--text-muted);
   }
+  #mods-toggle {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    color: #d0d0d0;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 5px 10px;
+    cursor: pointer;
+    text-transform: uppercase;
+    -webkit-app-region: no-drag;
+    white-space: nowrap;
+  }
+  #mods-toggle:hover { background: rgba(255,255,255,0.14); }
+
+  #mod-panel {
+    border-top: 1px solid rgba(255,255,255,0.06);
+    background: rgba(0,0,0,0.3);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.18s ease, padding 0.18s ease;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+  #mod-panel.open {
+    max-height: 190px;
+    padding: 7px 8px 8px;
+  }
+  #mod-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  #mod-title {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+  }
+  #mod-refresh {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.45);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 5px;
+    border-radius: 4px;
+  }
+  #mod-refresh:hover { color: #fff; background: rgba(255,255,255,0.08); }
+  #mod-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    max-height: 140px;
+    overflow-y: auto;
+  }
+  #mod-grid::-webkit-scrollbar { width: 3px; }
+  #mod-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+  .mod-item {
+    display: block;
+    width: 100%;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.05);
+    cursor: pointer;
+  }
+  .mod-item:hover { border-color: rgba(91,200,245,0.45); }
+  .mod-thumb {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+  }
+  .mod-empty {
+    color: rgba(255,255,255,0.45);
+    font-size: 10px;
+    padding: 8px 2px;
+  }
 </style>
 </head>
 <body>
@@ -311,9 +393,17 @@
   <div id="output"></div>
   <div id="inputbar">
     <input id="input" type="text" placeholder="Send command..." autocomplete="off" spellcheck="false" />
+    <button id="mods-toggle">mods ▾</button>
     <button id="send-btn" disabled>
       <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
     </button>
+  </div>
+  <div id="mod-panel">
+    <div id="mod-head">
+      <span id="mod-title">mod images</span>
+      <button id="mod-refresh">↺</button>
+    </div>
+    <div id="mod-grid"></div>
   </div>
 </div>
 
@@ -323,6 +413,11 @@
   const selectEl     = document.getElementById('session-select')
   const outputEl     = document.getElementById('output')
   const inputEl      = document.getElementById('input')
+  const modPanelEl   = document.getElementById('mod-panel')
+  const modGridEl    = document.getElementById('mod-grid')
+  const modTitleEl   = document.getElementById('mod-title')
+  const modRefreshEl = document.getElementById('mod-refresh')
+  const modsToggleEl = document.getElementById('mods-toggle')
   const sendBtn      = document.getElementById('send-btn')
   const refreshBtn   = document.getElementById('refresh-btn')
   const statusDot    = document.getElementById('status-dot')
@@ -340,6 +435,9 @@
   let windows = []
   let windowPollTimer = null
   let loadingWindows = false
+  let modImages = []
+  let loadingModImages = false
+  let modPanelOpen = false
   const CSI_RE = /\x1B\[[0-?]*[ -/]*[@-~]/g
   const OSC_RE = /\x1B\][^\x07]*(?:\x07|\x1B\\)/g
   const ESC_RE = /\x1B(?:[@-Z\\-_])/g
@@ -395,6 +493,69 @@
 
   function findSessionById(id) {
     return sessions.find(s => s.id === id)
+  }
+
+  function setModPanelOpen(open) {
+    modPanelOpen = open
+    modPanelEl.classList.toggle('open', open)
+    modsToggleEl.textContent = open ? 'mods ▴' : 'mods ▾'
+    if (open) loadModImages()
+  }
+
+  function renderModImages() {
+    modGridEl.innerHTML = ''
+    if (!modImages.length) {
+      const empty = document.createElement('div')
+      empty.className = 'mod-empty'
+      empty.textContent = 'No images found in mod folder.'
+      modGridEl.appendChild(empty)
+      return
+    }
+
+    modImages.forEach((img) => {
+      const btn = document.createElement('button')
+      btn.className = 'mod-item'
+      btn.title = img.relativePath || img.name
+
+      const imageEl = document.createElement('img')
+      imageEl.className = 'mod-thumb'
+      imageEl.src = img.url
+      imageEl.alt = img.name
+
+      btn.appendChild(imageEl)
+      btn.addEventListener('click', async () => {
+        const r = await window.adal.runModImageAction(img.path)
+        if (!r.ok) {
+          appendLine('factorio launch error: ' + r.error, 'err')
+          return
+        }
+        appendLine(`factorio relaunch requested from ${img.name}`, 'sys')
+      })
+      modGridEl.appendChild(btn)
+    })
+  }
+
+  async function loadModImages() {
+    if (loadingModImages) return
+    loadingModImages = true
+    try {
+      const r = await window.adal.listModImages()
+      if (!r.ok) {
+        modImages = []
+        modTitleEl.textContent = 'mod images (not found)'
+        modGridEl.innerHTML = ''
+        const empty = document.createElement('div')
+        empty.className = 'mod-empty'
+        empty.textContent = r.error || 'Could not load images.'
+        modGridEl.appendChild(empty)
+        return
+      }
+      modImages = r.images || []
+      modTitleEl.textContent = `mod images (${modImages.length})`
+      renderModImages()
+    } finally {
+      loadingModImages = false
+    }
   }
 
   // ── sessions ─────────────────────────────────────────────
@@ -507,6 +668,8 @@
 
   sendBtn.addEventListener('click', send)
   inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') send() })
+  modsToggleEl.addEventListener('click', () => setModPanelOpen(!modPanelOpen))
+  modRefreshEl.addEventListener('click', loadModImages)
 
   // ── window anchor ─────────────────────────────────────────
   async function loadWindows() {
@@ -564,6 +727,7 @@
   })
 
   loadWindows()
+  setModPanelOpen(false)
   windowPollTimer = setInterval(loadWindows, 1000)
   sessionPollTimer = setInterval(loadSessions, 1500)
   window.addEventListener('beforeunload', () => {
