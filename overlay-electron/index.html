@@ -380,8 +380,8 @@
 
 <div id="panel">
   <div id="topbar">
-    <select id="session-select"><option value="">no sessions</option></select>
-    <button id="refresh-btn" class="icon-btn" title="Refresh Sessions">↻</button>
+    <select id="session-select" style="display: none;"><option value="">no sessions</option></select>
+    <button id="refresh-btn" class="icon-btn" title="Refresh Sessions" style="display: none;">↻</button>
     <div id="status-dot"></div>
   </div>
   <div id="anchorbar">
@@ -459,9 +459,26 @@
       .replace(CONTROL_RE, '')
   }
 
+  let capturingAppend = false;
   function appendLine(text, cls) {
     const clean = normalizeTerminalText(text)
     clean.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').forEach(l => {
+      if (!cls) {
+        if (l.includes('⏺')) {
+          capturingAppend = true;
+          l = l.substring(l.indexOf('⏺'));
+        } else if (capturingAppend) {
+          const stripped = l.replace(/[\u2500-\u25FF]+/g, '');
+          if (stripped.length > 0 && stripped[0] !== ' ') {
+            capturingAppend = false;
+            return;
+          }
+          l = stripped.trim();
+          if (!l) return;
+        } else {
+          return;
+        }
+      }
       const div = document.createElement('div')
       div.className = 'line' + (cls ? ' '+cls : '')
       div.textContent = l.length ? l : ' '
@@ -477,8 +494,23 @@
     const lines = clean.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
     const start = Math.max(0, lines.length - 260)
     outputEl.innerHTML = ''
+    let capturing = false;
     for (let i = start; i < lines.length; i += 1) {
-      const l = lines[i]
+      let l = lines[i]
+      if (l.includes('⏺')) {
+        capturing = true;
+        l = l.substring(l.indexOf('⏺'));
+      } else if (capturing) {
+        const stripped = l.replace(/[\u2500-\u25FF]+/g, '');
+        if (stripped.length > 0 && stripped[0] !== ' ') {
+          capturing = false;
+          continue;
+        }
+        l = stripped.trim();
+        if (!l) continue;
+      } else {
+        continue;
+      }
       const div = document.createElement('div')
       div.className = 'line'
       div.textContent = l.length ? l : ' '
