@@ -7,14 +7,17 @@ const path = require('path')
 let win
 let terminalProcess = null
 let outputTailProcess = null
+let tmuxCaptureTimer = null
+let lastTmuxSnapshot = ''
 let attachedSession = null
 let anchoredPid = null
 let anchoredWindowId = null
 let anchorTimer = null
 const WININFO = path.join(__dirname, 'wininfo')
 const OVERLAY_SESSION_ID = 'overlay-local-shell'
-const SESSION_SCAN_CMD = 'ps -axo pid=,ppid=,tty=,command='
+const SESSION_SCAN_CMD = 'ps -axo pid=,ppid=,tpgid=,tty=,command='
 const BRIDGE_ROOT = path.join(os.homedir(), '.adal-overlay')
+const TMUX_LIST_FORMAT = '#{pane_id}\t#{pane_tty}\t#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_command}\t#{pane_active}\t#{pane_title}'
 const overlaySession = {
   id: OVERLAY_SESSION_ID,
   type: 'local',
@@ -99,7 +102,7 @@ function getBridgeLogPath(tty) {
   return path.join(BRIDGE_ROOT, `${safeName}.log`)
 }
 
-function listTtySessions() {
+function listTtySessions(excludedTtys = new Set()) {
   try {
     const out = execSync(SESSION_SCAN_CMD, { encoding: 'utf8' })
     const procs = out
@@ -107,10 +110,10 @@ function listTtySessions() {
       .map((line) => {
         const trimmed = line.trim()
         if (!trimmed) return null
-        const match = trimmed.match(/^(\d+)\s+(\d+)\s+(\S+)\s+(.+)$/)
+        const match = trimmed.match(/^(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s+(.+)$/)
         if (!match) return null
-        const [, pid, ppid, tty, command] = match
-        return { pid: Number(pid), ppid: Number(ppid), tty, command }
+        const [, pid, ppid, tpgid, tty, command] = match
+        return { pid: Number(pid), ppid: Number(ppid), tpgid: Number(tpgid), tty, command }
       })
       .filter((p) => p && p.tty !== '?' && p.tty !== '??')
 
@@ -125,6 +128,7 @@ function listTtySessions() {
     const adalRegex = /(^|\s|\/)adal(\s|$)/i
     const rankedSessions = []
     for (const [tty, members] of byTty.entries()) {
+      if (excludedTtys.has(tty)) continue
       const ranked = [...members].sort((a, b) => {
         const aAdal = adalRegex.test(a.command) ? 1 : 0
         const bAdal = adalRegex.test(b.command) ? 1 : 0
@@ -137,6 +141,10 @@ function listTtySessions() {
 
       const best = ranked[0]
       const hasAdal = members.some((p) => adalRegex.test(p.command))
+      const tpgid = members[0]?.tpgid ?? -1
+      const foreground = members.find((p) => p.pid === tpgid)
+      const foregroundCmd = foreground ? foreground.command.replace(/\s+/g, ' ').trim() : ''
+      const adalForeground = Boolean(foregroundCmd && adalRegex.test(foregroundCmd))
       const bridgeLog = getBridgeLogPath(tty)
       const bridgeReady = fs.existsSync(bridgeLog)
       let cur = byPid.get(best.ppid)
@@ -153,7 +161,8 @@ function listTtySessions() {
 
       const cmd = best.command.replace(/\s+/g, ' ').trim()
       const bridgeLabel = bridgeReady ? 'bridge:on' : 'bridge:off'
-      const title = `${hasAdal ? 'AdaL' : 'Shell'}${owner ? ` @ ${owner}` : ''} — ${tty} (${bridgeLabel}) — ${cmd}`
+      const fgLabel = adalForeground ? 'fg:adal' : 'fg:other'
+      const title = `${hasAdal ? 'AdaL' : 'Shell'}${owner ? ` @ ${owner}` : ''} — ${tty} (${bridgeLabel}, ${fgLabel}) — ${cmd}`
       rankedSessions.push({
         id: `tty:${tty}`,
         type: 'tty',
@@ -161,6 +170,8 @@ function listTtySessions() {
         pid: best.pid,
         hasAdal,
         bridgeReady,
+        adalForeground,
+        foregroundCmd,
         title,
         cmd,
       })
@@ -176,11 +187,65 @@ function listTtySessions() {
   }
 }
 
-ipcMain.handle('list-sessions', () => [...listTtySessions(), overlaySession])
+function listTmuxSessions() {
+  try {
+    const ttyIndex = new Map(listTtySessions().map((s) => [s.tty, s]))
+    const out = execFileSync('tmux', ['list-panes', '-a', '-F', TMUX_LIST_FORMAT], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    const adalRegex = /(^|\s|\/)adal(\s|$)/i
+    const sessions = out
+      .split('\n')
+      .map((line) => {
+        const trimmed = line.trim()
+        if (!trimmed) return null
+        const [paneId, paneTtyPath, paneRef, paneCurrentCommand, paneActive, paneTitle] = trimmed.split('\t')
+        if (!paneId || !paneTtyPath) return null
+        const tty = paneTtyPath.replace('/dev/', '')
+        const ttyMeta = ttyIndex.get(tty)
+        const hasAdal = Boolean(ttyMeta?.hasAdal || adalRegex.test(paneCurrentCommand || '') || adalRegex.test(paneTitle || ''))
+        const adalForeground = ttyMeta?.adalForeground ?? (hasAdal && paneActive === '1')
+        const foregroundCmd = ttyMeta?.foregroundCmd || paneCurrentCommand || ''
+        const fgLabel = adalForeground ? 'fg:adal' : 'fg:other'
+        const title = `TMUX ${paneRef} — ${tty} (${fgLabel}) — ${paneCurrentCommand || ''}`
+        return {
+          id: `tmux:${paneId}`,
+          type: 'tmux',
+          paneId,
+          paneRef,
+          tty,
+          hasAdal,
+          bridgeReady: true,
+          adalForeground,
+          foregroundCmd,
+          title,
+          cmd: paneCurrentCommand || '',
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        if (a.hasAdal !== b.hasAdal) return a.hasAdal ? -1 : 1
+        return a.title.localeCompare(b.title)
+      })
+    return sessions
+  } catch {
+    return []
+  }
+}
 
-function emitOutput(text, isError = false) {
+function listAllSessions() {
+  const tmuxSessions = listTmuxSessions()
+  const tmuxTtys = new Set(tmuxSessions.map((s) => s.tty))
+  const ttySessions = listTtySessions(tmuxTtys)
+  return [...tmuxSessions, ...ttySessions, overlaySession]
+}
+
+ipcMain.handle('list-sessions', () => listAllSessions())
+
+function emitOutput(text, isError = false, mode = 'append') {
   if (!win || win.isDestroyed()) return
-  win.webContents.send('output', { text, isError })
+  win.webContents.send('output', { text, isError, mode })
 }
 
 function stopOutputTail() {
@@ -188,6 +253,12 @@ function stopOutputTail() {
     outputTailProcess.kill()
   }
   outputTailProcess = null
+}
+
+function stopTmuxCapture() {
+  if (tmuxCaptureTimer) clearInterval(tmuxCaptureTimer)
+  tmuxCaptureTimer = null
+  lastTmuxSnapshot = ''
 }
 
 function stopTerminal() {
@@ -200,6 +271,7 @@ function stopTerminal() {
 function stopSessionTransports() {
   stopTerminal()
   stopOutputTail()
+  stopTmuxCapture()
 }
 
 function hasWritableTerminal() {
@@ -245,8 +317,7 @@ function startTerminal(session) {
   })
 }
 
-function startTtyOutputTail(session) {
-  const logFile = getBridgeLogPath(session.tty)
+function startOutputTail(logFile) {
   fs.mkdirSync(path.dirname(logFile), { recursive: true })
   if (!fs.existsSync(logFile)) fs.writeFileSync(logFile, '', 'utf8')
 
@@ -273,13 +344,41 @@ function startTtyOutputTail(session) {
 
 function attachTtySession(session) {
   stopSessionTransports()
-  startTtyOutputTail(session)
-  attachedSession = session
   const logPath = getBridgeLogPath(session.tty)
+  startOutputTail(logPath)
+  attachedSession = session
   const hint = session.bridgeReady
-    ? `[bridge] watching ${logPath}`
+    ? `[bridge] watching ${logPath}. Direct TTY send is limited; use tmux session for reliable TUI submit.`
     : `[bridge] watching ${logPath}. Start Adal via ./bridge-adal.sh in that terminal for live stream.`
   emitOutput(hint, false)
+}
+
+function attachTmuxSession(session) {
+  stopSessionTransports()
+  attachedSession = session
+  const capture = () => {
+    if (attachedSession?.id !== session.id) return
+    try {
+      const snap = execFileSync('tmux', ['capture-pane', '-p', '-J', '-S', '-200', '-t', session.paneId], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+      if (snap !== lastTmuxSnapshot) {
+        lastTmuxSnapshot = snap
+        emitOutput(snap, false, 'replace')
+      }
+    } catch (e) {
+      emitOutput(`tmux capture error: ${e.message}`, true)
+      stopTmuxCapture()
+    }
+  }
+  capture()
+  tmuxCaptureTimer = setInterval(capture, 250)
+  emitOutput(`[tmux] attached ${session.paneRef} on ${session.tty}`, false)
+}
+
+function getLiveSession(sessionId) {
+  return listAllSessions().find((s) => s.id === sessionId)
 }
 
 // ── attach / detach ───────────────────────────────────────
@@ -294,7 +393,32 @@ ipcMain.handle('attach', (_, session) => {
 
   if (session.type === 'tty') {
     try {
-      attachTtySession(session)
+      const live = getLiveSession(session.id)
+      if (!live) {
+        return { ok: false, error: 'selected tty session is no longer available' }
+      }
+      if (!live.bridgeReady) {
+        return {
+          ok: false,
+          error: `bridge not active for ${live.tty}. In that terminal run: cd ${__dirname} && ./bridge-adal.sh`,
+        }
+      }
+      attachTtySession(live)
+      return { ok: true }
+    } catch (e) {
+      stopSessionTransports()
+      attachedSession = null
+      return { ok: false, error: e.message }
+    }
+  }
+
+  if (session.type === 'tmux') {
+    try {
+      const live = getLiveSession(session.id)
+      if (!live || live.type !== 'tmux') {
+        return { ok: false, error: 'selected tmux pane is no longer available' }
+      }
+      attachTmuxSession(live)
       return { ok: true }
     } catch (e) {
       stopSessionTransports()
@@ -313,11 +437,34 @@ ipcMain.handle('attach', (_, session) => {
 })
 
 ipcMain.handle('send-message', async (_, text) => {
+  if (attachedSession?.type === 'tmux') {
+    try {
+      const live = getLiveSession(attachedSession.id)
+      if (!live || live.type !== 'tmux') return { ok: false, error: 'attached tmux pane disappeared' }
+      if (live.hasAdal && !live.adalForeground) {
+        return {
+          ok: false,
+          error: `adal is not foreground in ${live.paneRef} (fg: ${live.foregroundCmd || 'unknown'})`,
+        }
+      }
+      execFileSync('tmux', ['send-keys', '-t', live.paneId, '-l', String(text).trimEnd()], { encoding: 'utf8' })
+      execFileSync('tmux', ['send-keys', '-t', live.paneId, 'Enter'], { encoding: 'utf8' })
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  }
+
   if (attachedSession?.type === 'tty') {
     if (!attachedSession?.tty) return { ok: false, error: 'no tty attached' }
     try {
-      fs.writeFileSync(`/dev/${attachedSession.tty}`, `${String(text).trimEnd()}\n`)
-      return { ok: true }
+      const live = getLiveSession(attachedSession.id)
+      if (!live) return { ok: false, error: 'attached tty session disappeared' }
+      if (!live.bridgeReady) return { ok: false, error: `bridge not active for ${live.tty}` }
+      return {
+        ok: false,
+        error: `direct TTY submit is unreliable for TUIs. Use TMUX session for ${live.tty}.`,
+      }
     } catch (e) {
       return { ok: false, error: e.message }
     }

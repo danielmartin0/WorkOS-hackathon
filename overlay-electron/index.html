@@ -258,11 +258,16 @@
   let collapsed = false
   let anchored = false
   let currentSessionId = null
+  let pinnedSessionId = null
+  let hasAutoAttached = false
   let sessionPollTimer = null
   let windows = []
   let windowPollTimer = null
   let loadingWindows = false
-  const ANSI_ESCAPE_RE = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g
+  const CSI_RE = /\x1B\[[0-?]*[ -/]*[@-~]/g
+  const OSC_RE = /\x1B\][^\x07]*(?:\x07|\x1B\\)/g
+  const ESC_RE = /\x1B(?:[@-Z\\-_])/g
+  const CONTROL_RE = /[\x00-\x08\x0B-\x1F\x7F]/g
 
   // ── toggle ───────────────────────────────────────────────
   tabEl.addEventListener('click', () => {
@@ -272,8 +277,16 @@
   })
 
   // ── helpers ──────────────────────────────────────────────
+  function normalizeTerminalText(text) {
+    return String(text || '')
+      .replace(OSC_RE, '')
+      .replace(CSI_RE, '')
+      .replace(ESC_RE, '')
+      .replace(CONTROL_RE, '')
+  }
+
   function appendLine(text, cls) {
-    const clean = String(text || '').replace(ANSI_ESCAPE_RE, '')
+    const clean = normalizeTerminalText(text)
     clean.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').forEach(l => {
       const div = document.createElement('div')
       div.className = 'line' + (cls ? ' '+cls : '')
@@ -285,13 +298,32 @@
     outputEl.scrollTop = outputEl.scrollHeight
   }
 
+  function renderSnapshot(text) {
+    const clean = normalizeTerminalText(text)
+    const lines = clean.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+    const start = Math.max(0, lines.length - 260)
+    outputEl.innerHTML = ''
+    for (let i = start; i < lines.length; i += 1) {
+      const l = lines[i]
+      const div = document.createElement('div')
+      div.className = 'line'
+      div.textContent = l.length ? l : ' '
+      outputEl.appendChild(div)
+    }
+    outputEl.scrollTop = outputEl.scrollHeight
+  }
+
   function setStatus(on) {
     statusDot.className = on ? 'on' : ''
   }
 
+  function findSessionById(id) {
+    return sessions.find(s => s.id === id)
+  }
+
   // ── sessions ─────────────────────────────────────────────
   async function loadSessions() {
-    const prevSelected = selectEl.value || currentSessionId || ''
+    const previousSelection = pinnedSessionId || currentSessionId || selectEl.value || ''
     sessions = await window.adal.listSessions()
     selectEl.innerHTML = ''
 
@@ -299,6 +331,7 @@
       selectEl.innerHTML = '<option value="">no terminal sessions</option>'
       setStatus(false)
       currentSessionId = null
+      pinnedSessionId = null
       return
     }
 
@@ -309,41 +342,75 @@
       selectEl.appendChild(o)
     })
 
-    const preferred = sessions.find(s => s.id === prevSelected)
-      || sessions.find(s => s.hasAdal)
-      || sessions[0]
+    const preserved = findSessionById(previousSelection)
+    if (preserved) {
+      selectEl.value = preserved.id
+      if (currentSessionId === preserved.id) {
+        setStatus(true)
+      }
+      return
+    }
 
-    selectEl.value = preferred.id
+    if (!hasAutoAttached) {
+      const preferred = sessions.find(s => s.type === 'tmux' && s.hasAdal)
+        || sessions.find(s => s.type === 'tmux')
+        || sessions.find(s => s.type === 'tty' && s.hasAdal && s.bridgeReady)
+        || sessions.find(s => s.id === 'overlay-local-shell')
+        || sessions.find(s => s.bridgeReady)
+        || sessions[0]
+      selectEl.value = preferred.id
+      await attachSession(preferred, { pin: true })
+      hasAutoAttached = true
+      return
+    }
 
-    if (currentSessionId !== preferred.id) {
-      await attachSession(preferred)
+    if (currentSessionId && !findSessionById(currentSessionId)) {
+      appendLine('detached: selected terminal disappeared', 'err')
+      currentSessionId = null
+      pinnedSessionId = null
+      setStatus(false)
     } else {
-      setStatus(true)
+      setStatus(Boolean(currentSessionId))
     }
   }
 
-  async function attachSession(s) {
+  async function attachSession(s, opts = {}) {
     if (!s) return
+    const pin = opts.pin !== false
+    if (currentSessionId === s.id) {
+      if (pin) pinnedSessionId = s.id
+      setStatus(true)
+      return
+    }
     const r = await window.adal.attach(s)
     if (!r.ok) {
       setStatus(false)
       appendLine('attach error: ' + r.error, 'err')
       return
     }
+    hasAutoAttached = true
     currentSessionId = s.id
+    if (pin) pinnedSessionId = s.id
+    selectEl.value = s.id
     setStatus(true)
     appendLine(`attached to ${s.title}`, 'sys')
   }
 
   selectEl.addEventListener('change', async () => {
-    const s = sessions.find(s => s.id === selectEl.value)
-    if (s) await attachSession(s)
+    const s = findSessionById(selectEl.value)
+    if (s) await attachSession(s, { pin: true })
   })
 
   refreshBtn.addEventListener('click', loadSessions)
 
   // ── output ───────────────────────────────────────────────
-  window.adal.onOutput(({ text, isError }) => appendLine(text, isError ? 'err' : ''))
+  window.adal.onOutput(({ text, isError, mode }) => {
+    if (mode === 'replace' && !isError) {
+      renderSnapshot(text)
+      return
+    }
+    appendLine(text, isError ? 'err' : '')
+  })
 
   // ── send ─────────────────────────────────────────────────
   inputEl.addEventListener('input', () => {
@@ -355,7 +422,9 @@
     if (!text) return
     inputEl.value = ''
     sendBtn.disabled = true
-    appendLine('› ' + text, 'you')
+    const target = findSessionById(currentSessionId)
+    const route = target?.paneRef ? ` [${target.paneRef}]` : target?.tty ? ` [${target.tty}]` : ''
+    appendLine(`›${route} ` + text, 'you')
     const r = await window.adal.sendMessage(text)
     if (!r.ok) appendLine('error: ' + r.error, 'err')
   }
