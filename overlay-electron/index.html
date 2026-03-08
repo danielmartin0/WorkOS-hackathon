@@ -5,12 +5,12 @@
 <style>
   :root {
     /* Complementary Deep Navy Theme */
-    --bg-base: #0d131f; 
-    --bg-panel: #162032;
-    --bg-input: #090e17;
+    --bg-base: rgba(13, 19, 31, 0.9); 
+    --bg-panel: rgba(22, 32, 50, 0.9);
+    --bg-input: rgba(9, 14, 23, 0.9);
     
-    --border-line: #253654;
-    --border-line-hover: #354c74;
+    --border-line: transparent;
+    --border-line-hover: rgba(255, 255, 255, 0.1);
     
     /* Vibrant Orange Accent */
     --accent: #f97316; 
@@ -59,7 +59,7 @@
     -webkit-user-select: none;
     text-transform: uppercase;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -74,7 +74,7 @@
   #tab:hover { 
     background: var(--border-line); 
     border-color: var(--border-line-hover);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
   }
 
   /* ── panel ── */
@@ -88,7 +88,7 @@
     border-radius: 16px;
     overflow: hidden;
     margin-top: 12px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
     transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     transform-origin: top left;
   }
